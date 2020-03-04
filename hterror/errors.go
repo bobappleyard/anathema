@@ -1,26 +1,26 @@
 package hterror
 
-import (
-	"fmt"
-	"net/http"
-)
-
-var (
-	ErrNotFound = &WithStatusCode{404}
-)
-
-type WithStatusCode struct {
-	Status int
+type Error interface {
+	StatusCode() int
 }
 
-func (e *WithStatusCode) Error() string {
-	return fmt.Sprintf("status %d", e.Status)
+type withStatusCode struct {
+	code int
+	err  error
 }
 
-func (e *WithStatusCode) StatusCode() int {
-	return e.Status
+func WithStatusCode(code int, err error) error {
+	return &withStatusCode{code, err}
 }
 
-type Handler interface {
-	HandleError(w http.ResponseWriter, r *http.Request, e error)
+func (e *withStatusCode) Error() string {
+	return e.err.Error()
+}
+
+func (e *withStatusCode) Unwrap() error {
+	return e.err
+}
+
+func (e *withStatusCode) StatusCode() int {
+	return e.code
 }
