@@ -2,7 +2,7 @@ package server_test
 
 import (
 	"fmt"
-	"github.com/bobappleyard/anathema/errors"
+	"github.com/bobappleyard/anathema/hterror"
 	"github.com/bobappleyard/anathema/server"
 	"io"
 	"net/http/httptest"
@@ -49,7 +49,7 @@ func (r testRepository) GetUser(id int) (User, error) {
 	if u, ok := r.users[id]; ok {
 		return u, nil
 	}
-	return User{}, errors.ErrNotFound
+	return User{}, hterror.ErrNotFound
 }
 
 func (r testRepository) SetUser(id int, user User) error {
