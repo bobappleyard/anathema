@@ -11,6 +11,8 @@ import (
 	"strings"
 )
 
+var errNotFound = hterror.WithStatusCode(http.StatusNotFound, errors.New("not found"))
+
 type User struct {
 	ID   int
 	Name string
@@ -19,6 +21,7 @@ type User struct {
 type UserRepository interface {
 	GetUser(id int) (User, error)
 	SetUser(id int, u User) error
+	DelUser(id int) error
 }
 
 type UserResource struct {
@@ -29,6 +32,7 @@ type UserResource struct {
 func (UserResource) Init(g server.Group) {
 	g.GET(UserResource.GetUser)
 	g.PUT(UserResource.PutUser)
+	g.DELETE(UserResource.DelUser)
 }
 
 func (r UserResource) GetUser(repo UserRepository) (User, error) {
@@ -43,6 +47,10 @@ func (r UserResource) PutUser(user User, repo UserRepository) (User, error) {
 	return user, nil
 }
 
+func (r UserResource) DelUser(repo UserRepository) error {
+	return repo.DelUser(r.ID)
+}
+
 type testRepository struct {
 	users map[int]User
 }
@@ -51,12 +59,20 @@ func (r testRepository) GetUser(id int) (User, error) {
 	if u, ok := r.users[id]; ok {
 		return u, nil
 	}
-	return User{}, hterror.WithStatusCode(http.StatusNotFound, errors.New("not found"))
+	return User{}, errNotFound
 }
 
 func (r testRepository) SetUser(id int, user User) error {
 	r.users[id] = user
 	return nil
+}
+
+func (r testRepository) DelUser(id int) error {
+	if _, ok := r.users[id]; ok {
+		delete(r.users, id)
+		return nil
+	}
+	return errNotFound
 }
 
 func runRequest(s *server.Server, method, path, body string) {
@@ -67,7 +83,11 @@ func runRequest(s *server.Server, method, path, body string) {
 	r := httptest.NewRequest(method, path, bodyReader)
 	w := httptest.NewRecorder()
 	s.ServeHTTP(w, r)
-	fmt.Println(w.Code, w.Body)
+	fmt.Print(w.Code)
+	if w.Body.Len() != 0 {
+		fmt.Print(" ", w.Body)
+	}
+	fmt.Println()
 }
 
 func Example() {
@@ -81,10 +101,14 @@ func Example() {
 	runRequest(s, "PUT", "/users/2", `{"ID":2,"Name":"jim"}`)
 	runRequest(s, "GET", "/users/1", "")
 	runRequest(s, "GET", "/users/3", "")
+	runRequest(s, "DELETE", "/users/1", "")
+	runRequest(s, "GET", "/users/1", "")
 
 	// Output:
 	// 200 {"ID":1,"Name":"bob"}
 	// 200 {"ID":2,"Name":"jim"}
 	// 200 {"ID":1,"Name":"bob"}
+	// 404
+	// 204
 	// 404
 }

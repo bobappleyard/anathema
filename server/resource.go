@@ -65,55 +65,13 @@ type resourceGroup struct {
 
 func (g *resourceGroup) Sub(name string) Group { return nil }
 
-func (g *resourceGroup) HEAD(f interface{})    {}
-func (g *resourceGroup) OPTIONS(f interface{}) {}
-func (g *resourceGroup) POST(f interface{})    {}
-func (g *resourceGroup) PATCH(f interface{})   {}
-func (g *resourceGroup) DELETE(f interface{})  {}
-
-func (g *resourceGroup) GET(f interface{}) {
-	rh := resource.Func(f)
-	h := func(w http.ResponseWriter, r *http.Request) {
-		ctx, err := g.bind(r.Context())
-		if err != nil {
-			http.NotFound(w, r)
-			return
-		}
-		rh.ServeHTTP(w, r.WithContext(ctx))
-	}
-	r := g.route.WithHandler(http.HandlerFunc(h))
-	err := g.server.router.AddRoute("GET", r)
-	if err != nil {
-		panic(err)
-	}
-}
-
-func (g *resourceGroup) PUT(f interface{}) {
-	rh := resource.Func(f)
-	rt := reflect.TypeOf(f).In(1)
-	h := func(w http.ResponseWriter, r *http.Request) {
-		ctx, err := g.bind(r.Context())
-		if err != nil {
-			http.NotFound(w, r)
-			return
-		}
-		req := reflect.New(rt)
-		err = di.Require(ctx, func(e resource.Encoding) error {
-			return e.Decode(r, req.Interface())
-		})
-		if err != nil {
-			w.WriteHeader(400)
-			return
-		}
-		ctx = di.Insert(ctx, rt, req.Elem())
-		rh.ServeHTTP(w, r.WithContext(ctx))
-	}
-	r := g.route.WithHandler(http.HandlerFunc(h))
-	err := g.server.router.AddRoute("PUT", r)
-	if err != nil {
-		panic(err)
-	}
-}
+func (g *resourceGroup) HEAD(f interface{})    { g.addRoute("HEAD", false, f) }
+func (g *resourceGroup) OPTIONS(f interface{}) { g.addRoute("OPTIONS", false, f) }
+func (g *resourceGroup) POST(f interface{})    { g.addRoute("POST", true, f) }
+func (g *resourceGroup) PATCH(f interface{})   { g.addRoute("PATCH", true, f) }
+func (g *resourceGroup) DELETE(f interface{})  { g.addRoute("DELETE", false, f) }
+func (g *resourceGroup) GET(f interface{})     { g.addRoute("GET", false, f) }
+func (g *resourceGroup) PUT(f interface{})     { g.addRoute("PUT", true, f) }
 
 func (g *resourceGroup) bind(ctx context.Context) (context.Context, error) {
 	err := di.Require(ctx, func(m router.Match) error {
@@ -125,4 +83,33 @@ func (g *resourceGroup) bind(ctx context.Context) (context.Context, error) {
 		return nil
 	})
 	return ctx, err
+}
+
+func (g *resourceGroup) addRoute(method string, requestBody bool, f interface{}) {
+	rh := resource.Func(f)
+	h := func(w http.ResponseWriter, r *http.Request) {
+		ctx, err := g.bind(r.Context())
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		if requestBody {
+			rt := reflect.TypeOf(f).In(1)
+			req := reflect.New(rt)
+			err = di.Require(ctx, func(e resource.Encoding) error {
+				return e.Decode(r, req.Interface())
+			})
+			if err != nil {
+				w.WriteHeader(400)
+				return
+			}
+			ctx = di.Insert(ctx, rt, req.Elem())
+		}
+		rh.ServeHTTP(w, r.WithContext(ctx))
+	}
+	r := g.route.WithHandler(http.HandlerFunc(h))
+	err := g.server.router.AddRoute(method, r)
+	if err != nil {
+		panic(err)
+	}
 }
