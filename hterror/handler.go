@@ -1,8 +1,12 @@
-package errors
+package hterror
 
 import (
 	"net/http"
 )
+
+type Handler interface {
+	HandleError(w http.ResponseWriter, r *http.Request, e error)
+}
 
 var DefaultHandler = defaultHandler{}
 

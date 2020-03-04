@@ -2,7 +2,7 @@ package resource
 
 import (
 	"github.com/bobappleyard/anathema/di"
-	"github.com/bobappleyard/anathema/errors"
+	"github.com/bobappleyard/anathema/hterror"
 	"net/http"
 	"reflect"
 )
@@ -99,7 +99,7 @@ func (h *funcHandler) marshalResponse(r *http.Request, out []reflect.Value) ([]b
 }
 
 func (h *funcHandler) handleError(w http.ResponseWriter, r *http.Request, err error) {
-	if di.Require(r.Context(), func(h errors.Handler) {
+	if di.Require(r.Context(), func(h hterror.Handler) {
 		h.HandleError(w, r, err)
 	}) != nil {
 		w.WriteHeader(500)

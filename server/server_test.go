@@ -1,10 +1,12 @@
 package server_test
 
 import (
+	"errors"
 	"fmt"
-	"github.com/bobappleyard/anathema/errors"
+	"github.com/bobappleyard/anathema/hterror"
 	"github.com/bobappleyard/anathema/server"
 	"io"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 )
@@ -49,7 +51,7 @@ func (r testRepository) GetUser(id int) (User, error) {
 	if u, ok := r.users[id]; ok {
 		return u, nil
 	}
-	return User{}, errors.ErrNotFound
+	return User{}, hterror.WithStatusCode(http.StatusNotFound, errors.New("not found"))
 }
 
 func (r testRepository) SetUser(id int, user User) error {

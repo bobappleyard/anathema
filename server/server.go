@@ -2,7 +2,7 @@ package server
 
 import (
 	"github.com/bobappleyard/anathema/di"
-	"github.com/bobappleyard/anathema/errors"
+	"github.com/bobappleyard/anathema/hterror"
 	"github.com/bobappleyard/anathema/resource"
 	"github.com/bobappleyard/anathema/router"
 	"net/http"
@@ -19,7 +19,7 @@ type Server struct {
 
 func New() *Server {
 	s := &Server{}
-	s.AddService(func() errors.Handler { return errors.DefaultHandler })
+	s.AddService(func() hterror.Handler { return hterror.DefaultHandler })
 	s.AddService(func() resource.Encoding { return resource.JSONEncoding })
 	return s
 }
