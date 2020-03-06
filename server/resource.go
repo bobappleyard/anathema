@@ -48,7 +48,7 @@ func (s *Server) Resource(r Resource) Group {
 		panic("missing field defintions")
 	}
 
-	g := &resourceGroup{s, route, bdg, rt}
+	g := &resourceGroup{s, path, route, bdg, rt}
 	if r, ok := r.(resourceInit); ok {
 		r.Init(g)
 	}
@@ -58,12 +58,19 @@ func (s *Server) Resource(r Resource) Group {
 
 type resourceGroup struct {
 	server       *Server
+	path         string
 	route        *router.Route
 	bindings     binding.Binding
 	resourceType reflect.Type
 }
 
-func (g *resourceGroup) Sub(name string) Group { return nil }
+func (g *resourceGroup) Sub(name string) Group {
+	r, err := router.ParseRoute(g.path + "/" + name)
+	if err != nil {
+		panic(err)
+	}
+	return &subResourceGroup{g.server, g, r, name}
+}
 
 func (g *resourceGroup) HEAD(f interface{})    { g.addRoute("HEAD", false, f) }
 func (g *resourceGroup) OPTIONS(f interface{}) { g.addRoute("OPTIONS", false, f) }
@@ -85,29 +92,44 @@ func (g *resourceGroup) bind(ctx context.Context) (context.Context, error) {
 	return ctx, err
 }
 
+func (g *resourceGroup) handler(method string, requestBody bool, f interface{}) http.Handler {
+	return resource.Func(f, requestBody, g.bind)
+}
+
 func (g *resourceGroup) addRoute(method string, requestBody bool, f interface{}) {
-	rh := resource.Func(f)
-	h := func(w http.ResponseWriter, r *http.Request) {
-		ctx, err := g.bind(r.Context())
-		if err != nil {
-			http.NotFound(w, r)
-			return
-		}
-		if requestBody {
-			rt := reflect.TypeOf(f).In(1)
-			req := reflect.New(rt)
-			err = di.Require(ctx, func(e resource.Encoding) error {
-				return e.Decode(r, req.Interface())
-			})
-			if err != nil {
-				w.WriteHeader(400)
-				return
-			}
-			ctx = di.Insert(ctx, rt, req.Elem())
-		}
-		rh.ServeHTTP(w, r.WithContext(ctx))
+	r := g.route.WithHandler(g.handler(method, requestBody, f))
+	err := g.server.router.AddRoute(method, r)
+	if err != nil {
+		panic(err)
 	}
-	r := g.route.WithHandler(http.HandlerFunc(h))
+}
+
+type subResourceGroup struct {
+	server *Server
+	parent *resourceGroup
+	route  *router.Route
+	suffix string
+}
+
+func (g *subResourceGroup) Sub(name string) Group {
+	suffix := g.suffix + "/" + name
+	r, err := router.ParseRoute(g.parent.path + "/" + suffix)
+	if err != nil {
+		panic(err)
+	}
+	return &subResourceGroup{g.server, g.parent, r, suffix}
+}
+
+func (g *subResourceGroup) HEAD(f interface{})    { g.addRoute("HEAD", false, f) }
+func (g *subResourceGroup) OPTIONS(f interface{}) { g.addRoute("OPTIONS", false, f) }
+func (g *subResourceGroup) POST(f interface{})    { g.addRoute("POST", true, f) }
+func (g *subResourceGroup) PATCH(f interface{})   { g.addRoute("PATCH", true, f) }
+func (g *subResourceGroup) DELETE(f interface{})  { g.addRoute("DELETE", false, f) }
+func (g *subResourceGroup) GET(f interface{})     { g.addRoute("GET", false, f) }
+func (g *subResourceGroup) PUT(f interface{})     { g.addRoute("PUT", true, f) }
+
+func (g *subResourceGroup) addRoute(method string, requestBody bool, f interface{}) {
+	r := g.route.WithHandler(g.parent.handler(method, requestBody, f))
 	err := g.server.router.AddRoute(method, r)
 	if err != nil {
 		panic(err)

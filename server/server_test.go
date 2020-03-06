@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-var errNotFound = hterror.WithStatusCode(http.StatusNotFound, errors.New("not found"))
+var errNotFound = errors.New("not found")
 
 type User struct {
 	ID   int
@@ -33,10 +33,19 @@ func (UserResource) Init(g server.Group) {
 	g.GET(UserResource.GetUser)
 	g.PUT(UserResource.PutUser)
 	g.DELETE(UserResource.DelUser)
+	g.Sub("photo").GET(UserResource.GetPhoto)
 }
 
 func (r UserResource) GetUser(repo UserRepository) (User, error) {
-	return repo.GetUser(r.ID)
+	u, err := repo.GetUser(r.ID)
+	if err == errNotFound {
+		return User{}, hterror.WithStatusCode(http.StatusNotFound, err)
+	}
+	return u, err
+}
+
+func (r UserResource) GetPhoto() ([]byte, error) {
+	return nil, nil
 }
 
 func (r UserResource) PutUser(user User, repo UserRepository) (User, error) {
@@ -48,7 +57,11 @@ func (r UserResource) PutUser(user User, repo UserRepository) (User, error) {
 }
 
 func (r UserResource) DelUser(repo UserRepository) error {
-	return repo.DelUser(r.ID)
+	err := repo.DelUser(r.ID)
+	if err == errNotFound {
+		return hterror.WithStatusCode(http.StatusNotFound, err)
+	}
+	return err
 }
 
 type testRepository struct {
@@ -103,6 +116,7 @@ func Example() {
 	runRequest(s, "GET", "/users/3", "")
 	runRequest(s, "DELETE", "/users/1", "")
 	runRequest(s, "GET", "/users/1", "")
+	runRequest(s, "GET", "/users/1/photo", "")
 
 	// Output:
 	// 200 {"ID":1,"Name":"bob"}
@@ -111,4 +125,5 @@ func Example() {
 	// 404
 	// 204
 	// 404
+	// 200 null
 }
