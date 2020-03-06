@@ -1,6 +1,7 @@
 package resource
 
 import (
+	"context"
 	"github.com/bobappleyard/anathema/di"
 	"net/http/httptest"
 	"testing"
@@ -18,6 +19,8 @@ func TestFunc(t *testing.T) {
 	}
 	h := Func(func(res Resource, req Request) Response {
 		return Response{1}
+	}, false, func(ctx context.Context) (context.Context, error) {
+		return ctx, nil
 	})
 	r := httptest.NewRequest("GET", "/", nil)
 	ctx := r.Context()

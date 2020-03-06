@@ -8,7 +8,7 @@ import (
 
 type Encoding interface {
 	Decode(r *http.Request, entity interface{}) error
-	Encode(r *http.Request, entity interface{}) ([]byte, error)
+	Encode(r *http.Request, entity interface{}) ([]byte, string, error)
 }
 
 var JSONEncoding Encoding = jsonEncoding{}
@@ -23,6 +23,7 @@ func (jsonEncoding) Decode(r *http.Request, entity interface{}) error {
 	return json.Unmarshal(buf, entity)
 }
 
-func (jsonEncoding) Encode(r *http.Request, entity interface{}) ([]byte, error) {
-	return json.Marshal(entity)
+func (jsonEncoding) Encode(r *http.Request, entity interface{}) ([]byte, string, error) {
+	buf, err := json.Marshal(entity)
+	return buf, "application/json", err
 }
