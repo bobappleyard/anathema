@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"github.com/bobappleyard/anathema/di"
 	"github.com/bobappleyard/anathema/hterror"
 	"github.com/bobappleyard/anathema/resource"
@@ -14,7 +15,7 @@ type Resource interface {
 
 type Server struct {
 	router   router.Router
-	services []interface{}
+	services *di.Registry
 }
 
 func New() *Server {
@@ -25,13 +26,14 @@ func New() *Server {
 }
 
 func (s *Server) AddService(f interface{}) {
-	s.services = append(s.services, f)
+	if s.services == nil {
+		s.services, _ = di.New(context.Background())
+	}
+	s.services.Provide(f)
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	for _, service := range s.services {
-		ctx = di.Provide(ctx, service)
-	}
+	ctx = s.services.Extend().Bind(ctx)
 	s.router.ServeHTTP(w, r.WithContext(ctx))
 }

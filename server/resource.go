@@ -80,16 +80,16 @@ func (g *resourceGroup) DELETE(f interface{})  { g.addRoute("DELETE", false, f) 
 func (g *resourceGroup) GET(f interface{})     { g.addRoute("GET", false, f) }
 func (g *resourceGroup) PUT(f interface{})     { g.addRoute("PUT", true, f) }
 
-func (g *resourceGroup) bind(ctx context.Context) (context.Context, error) {
-	err := di.Require(ctx, func(m router.Match) error {
+func (g *resourceGroup) bind(ctx context.Context) error {
+	reg := di.GetRegistry(ctx)
+	return di.Require(ctx, func(m router.Match) error {
 		rv, err := g.bindings.FromStrings(m.Values)
 		if err != nil {
 			return err
 		}
-		ctx = di.Insert(ctx, g.resourceType, rv)
+		reg.Insert(g.resourceType, rv)
 		return nil
 	})
-	return ctx, err
 }
 
 func (g *resourceGroup) handler(method string, requestBody bool, f interface{}) http.Handler {
