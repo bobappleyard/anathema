@@ -26,7 +26,7 @@ func (r *testRepo) Get(id int) (Item, error) {
 func Example() {
 	ctx := context.Background()
 
-	ctx = di.Provide(ctx, func() Repo { return &testRepo{Item{1}} })
+	ctx = di.ProvideValue(ctx, &testRepo{Item{1}})
 	ctx = di.Provide(ctx, func(r Repo) (Item, error) { return r.Get(1) })
 
 	err := di.Require(ctx, func(item Item) { fmt.Println("item:", item) })

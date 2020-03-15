@@ -17,9 +17,25 @@ var (
 	errBadRequest = hterror.WithStatusCode(http.StatusBadRequest, errors.New("bad request"))
 )
 
-func Func(f interface{}, requestBody bool, bind func(context.Context) (context.Context, error)) http.Handler {
+func Func(f interface{}, requestBody bool, bind func(context.Context) error) http.Handler {
 	ft := reflect.TypeOf(f)
-	var res, err bool
+	res, err := parseFunctionOutputs(ft)
+	return &funcHandler{
+		invoke: f,
+		res:    res,
+		err:    err,
+		body:   requestBody,
+		bind:   bind,
+	}
+}
+
+type funcHandler struct {
+	invoke         interface{}
+	bind           func(context.Context) error
+	res, err, body bool
+}
+
+func parseFunctionOutputs(ft reflect.Type) (res, err bool) {
 	switch ft.NumOut() {
 	case 0:
 		err = false
@@ -33,28 +49,15 @@ func Func(f interface{}, requestBody bool, bind func(context.Context) (context.C
 	default:
 		panic("wrong nmber of outputs")
 	}
-	return &funcHandler{
-		invoke: reflect.ValueOf(f),
-		res:    res,
-		err:    err,
-		body:   requestBody,
-		bind:   bind,
-	}
-}
-
-type funcHandler struct {
-	invoke         reflect.Value
-	bind           func(context.Context) (context.Context, error)
-	res, err, body bool
+	return res, err
 }
 
 func (h *funcHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	in, err := h.interpretRequest(r)
+	out, err := h.interpretRequest(r)
 	if err != nil {
 		h.handleError(w, r, err)
 		return
 	}
-	out := h.invoke.Call(in)
 	bs, contentType, err := h.marshalResponse(r, out)
 	if err != nil {
 		h.handleError(w, r, err)
@@ -70,31 +73,25 @@ func (h *funcHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *funcHandler) interpretRequest(r *http.Request) ([]reflect.Value, error) {
-	ctx, err := h.bind(r.Context())
+	ctx := r.Context()
+	reg := di.GetRegistry(ctx)
+	err := h.bind(ctx)
 	if err != nil {
 		return nil, errNotFound
 	}
-	ft := h.invoke.Type()
+	ft := reflect.TypeOf(h.invoke)
 	if h.body {
 		rt := ft.In(1)
 		req := reflect.New(rt)
-		err = di.Require(ctx, func(e Encoding) error {
+		err = reg.Require(ctx, func(e Encoding) error {
 			return e.Decode(r, req.Interface())
 		})
 		if err != nil {
 			return nil, errBadRequest
 		}
-		ctx = di.Insert(ctx, rt, req.Elem())
+		reg.Insert(rt, req.Elem())
 	}
-	in := make([]reflect.Value, ft.NumIn())
-	for i := ft.NumIn() - 1; i >= 0; i-- {
-		arg, err := di.Extract(ctx, ft.In(i))
-		if err != nil {
-			return nil, err
-		}
-		in[i] = reflect.ValueOf(arg)
-	}
-	return in, nil
+	return reg.Apply(ctx, h.invoke)
 }
 
 func (h *funcHandler) marshalResponse(r *http.Request, out []reflect.Value) ([]byte, string, error) {

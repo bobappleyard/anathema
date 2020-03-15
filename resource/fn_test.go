@@ -19,8 +19,8 @@ func TestFunc(t *testing.T) {
 	}
 	h := Func(func(res Resource, req Request) Response {
 		return Response{1}
-	}, false, func(ctx context.Context) (context.Context, error) {
-		return ctx, nil
+	}, false, func(context.Context) error {
+		return nil
 	})
 	r := httptest.NewRequest("GET", "/", nil)
 	ctx := r.Context()
