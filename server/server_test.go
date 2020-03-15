@@ -94,6 +94,7 @@ func runRequest(s *server.Server, method, path, body string) {
 		bodyReader = strings.NewReader(body)
 	}
 	r := httptest.NewRequest(method, path, bodyReader)
+	r.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	s.ServeHTTP(w, r)
 	fmt.Print(w.Code)

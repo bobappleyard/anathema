@@ -16,6 +16,9 @@ var JSONEncoding Encoding = jsonEncoding{}
 type jsonEncoding struct{}
 
 func (jsonEncoding) Decode(r *http.Request, entity interface{}) error {
+	if r.Header.Get("Content-Type") != "application/json" {
+		return errBadRequest
+	}
 	buf, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		return err
