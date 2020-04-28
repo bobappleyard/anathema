@@ -12,6 +12,7 @@ package di
 
 import (
 	"context"
+	"reflect"
 )
 
 // Require calls the function f, using extract to furnish its inputs. If any of
@@ -20,6 +21,26 @@ import (
 // return an error, which is duly returned by Require.
 func Require(ctx context.Context, f interface{}) error {
 	return GetRegistry(ctx).Require(ctx, f)
+}
+
+// Extract attempts to find an injected value of a particular type from the
+// given context.
+func Extract(ctx context.Context, t reflect.Type) (interface{}, error) {
+	r := GetRegistry(ctx)
+	for cur := r; cur != nil; cur = cur.next {
+		if f, ok := cur.entries[t]; ok {
+			r.entries[t] = f
+			return f(ctx)
+		}
+		for u, f := range cur.entries {
+			if !u.AssignableTo(t) {
+				continue
+			}
+			r.entries[t] = f
+			return f(ctx)
+		}
+	}
+	return nil, &NotFoundErr{ctx, t}
 }
 
 // ProvideValue registers a value which, when requested using Require, will be
