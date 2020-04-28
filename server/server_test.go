@@ -13,10 +13,16 @@ import (
 
 var errNotFound = errors.New("not found")
 
+// Begin by defining our model type. This is what the HTTP API is managing. In
+// this example we have an extremely simple user entity.
+
 type User struct {
 	ID   int
 	Name string
 }
+
+// Here we define a repository for storing users. You'll want to define all, or
+// most, interactions in terms of these kinds of interfaces.
 
 type UserRepository interface {
 	GetUser(id int) (User, error)
@@ -24,10 +30,22 @@ type UserRepository interface {
 	DelUser(id int) error
 }
 
+// Finally, we define a resource type. This is what really interacts with the
+// framework. The important part here is that we have embedded server.Resource
+// along with giving it a path field tag.
+//
+// The path tag is used by the framework to populate the fields of the resource
+// struct during method handling. Here, the ID field has been mapped to a path
+// segment.
+
 type UserResource struct {
 	server.Resource `path:"/users/{ID}"`
 	ID              int
 }
+
+// The most straightforward way of setting up a resource is to define an Init
+// method. This is called on line xxx when the resource type is introduced to
+// the server, and maps HTTP verbs to operations on the resource type.
 
 func (UserResource) Init(g server.Group) {
 	g.GET(UserResource.GetUser)
@@ -35,6 +53,11 @@ func (UserResource) Init(g server.Group) {
 	g.DELETE(UserResource.DelUser)
 	g.Sub("photo").GET(UserResource.GetPhoto)
 }
+
+// Implement those HTTP verbs. Note that the arguments are furnished by the
+// framework based on the declared type (typical DI scenario) and the return
+// values of the methods are marshaled into appropriate responses (JSON by
+// default).
 
 func (r UserResource) GetUser(repo UserRepository) (User, error) {
 	u, err := repo.GetUser(r.ID)
@@ -64,6 +87,8 @@ func (r UserResource) DelUser(repo UserRepository) error {
 	return err
 }
 
+// This is a mock type for testing out our API.
+
 type testRepository struct {
 	users map[int]User
 }
@@ -88,6 +113,9 @@ func (r testRepository) DelUser(id int) error {
 	return errNotFound
 }
 
+// This is a function for testing our API by firing a request at it and printing
+// what it produces.
+
 func runRequest(s *server.Server, method, path, body string) {
 	var bodyReader io.Reader
 	if body != "" {
@@ -104,12 +132,16 @@ func runRequest(s *server.Server, method, path, body string) {
 	fmt.Println()
 }
 
+// Wiring everything together is simple.
+
 func Example() {
 	repo := testRepository{map[int]User{}}
 
 	s := server.New()
 	s.AddService(func() UserRepository { return repo })
 	s.Resource(UserResource{})
+
+	// Some test invocations
 
 	runRequest(s, "PUT", "/users/1", `{"ID":1,"Name":"bob"}`)
 	runRequest(s, "PUT", "/users/2", `{"ID":2,"Name":"jim"}`)
