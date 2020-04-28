@@ -40,26 +40,6 @@ func (r *Registry) Bind(ctx context.Context) context.Context {
 	return context.WithValue(ctx, marker, r)
 }
 
-// Extract attempts to furnish a value of the requested type.
-func (r *Registry) Extract(ctx context.Context, t reflect.Type) (interface{}, error) {
-	cur := r
-	for cur != nil {
-		if f, ok := cur.entries[t]; ok {
-			r.entries[t] = f
-			return f(ctx)
-		}
-		for u, f := range cur.entries {
-			if !u.AssignableTo(t) {
-				continue
-			}
-			r.entries[t] = f
-			return f(ctx)
-		}
-		cur = cur.next
-	}
-	return nil, &NotFoundErr{ctx, t}
-}
-
 // Apply uses the inputs to a function in order to determine what values to
 // extract. The outputs of the function are returned.
 func (r *Registry) Apply(ctx context.Context, f interface{}) ([]reflect.Value, error) {
@@ -69,7 +49,7 @@ func (r *Registry) Apply(ctx context.Context, f interface{}) ([]reflect.Value, e
 	in := make([]reflect.Value, ft.NumIn())
 
 	for i := 0; i < ft.NumIn(); i++ {
-		x, err := r.Extract(ctx, ft.In(i))
+		x, err := Extract(ctx, ft.In(i))
 		if err != nil {
 			return nil, err
 		}
