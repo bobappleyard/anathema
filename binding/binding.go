@@ -1,12 +1,12 @@
 package binding
 
 import (
-	"errors"
 	"reflect"
 	"sort"
 	"unsafe"
 )
 
+// Binding associates names with struct offsets.
 type Binding struct {
 	typ    reflect.Type
 	names  []string
@@ -20,16 +20,19 @@ type field struct {
 
 type sortBindings Binding
 
-var ErrNotFound = errors.New("not found")
+// Constructor describes how to create a binding for structs.
+type Constructor func(reflect.StructField) (string, bool)
 
-func ForStruct(t reflect.Type) Binding {
+// ForStruct will create a binding for a struct type.
+func (c Constructor) ForStruct(t reflect.Type) Binding {
 	res := Binding{typ: t}
 	for i := 0; i < t.NumField(); i++ {
 		f := t.Field(i)
-		if f.PkgPath != "" {
+		n, ok := c(f)
+		if !ok {
 			continue
 		}
-		res.names = append(res.names, f.Name)
+		res.names = append(res.names, n)
 		res.fields = append(res.fields, field{
 			m:      mechanismFor(f.Type),
 			offset: f.Offset,
@@ -37,6 +40,28 @@ func ForStruct(t reflect.Type) Binding {
 		sort.Sort((*sortBindings)(&res))
 	}
 	return res
+}
+
+// Fields returns a constructor that uses the names of the fields to create
+// bindings.
+func Fields() Constructor {
+	return func(f reflect.StructField) (string, bool) {
+		if f.PkgPath != "" {
+			return "", false
+		}
+		return f.Name, true
+	}
+}
+
+// Tag returns a constructor that uses the named tag as the basis for binding
+// names.
+func Tag(name string) Constructor {
+	return func(f reflect.StructField) (string, bool) {
+		if f.PkgPath != "" {
+			return "", false
+		}
+		return f.Tag.Lookup(name)
+	}
 }
 
 func (b *sortBindings) Len() int {
@@ -52,6 +77,8 @@ func (b *sortBindings) Swap(i, j int) {
 	b.fields[i], b.fields[j] = b.fields[j], b.fields[i]
 }
 
+// Slice returns a binding that contains the provided names. Any names that are
+// not present in the original binding appear as undefined fields.
 func (b Binding) Slice(names []string) Binding {
 	res := Binding{typ: b.typ}
 	res.names = names
@@ -68,6 +95,8 @@ func (b Binding) Slice(names []string) Binding {
 	return res
 }
 
+// ToStrings returns a slice containing the string representation of fields on
+// the provided struct value.
 func (b Binding) ToStrings(v reflect.Value) ([]string, error) {
 	res := make([]string, len(b.fields))
 	p := unsafe.Pointer(v.UnsafeAddr())
@@ -81,35 +110,37 @@ func (b Binding) ToStrings(v reflect.Value) ([]string, error) {
 	return res, nil
 }
 
-func (b Binding) FromStrings(s []string) (reflect.Value, error) {
-	v := reflect.New(b.typ).Elem()
-	p := unsafe.Pointer(v.UnsafeAddr())
+// FromStrings parses the slice of strings into the provided struct value.
+func (b Binding) FromStrings(s []string, v reflect.Value) error {
+	p := unsafe.Pointer(v.Elem().UnsafeAddr())
 	for i, f := range b.fields {
 		err := f.write(p, s[i])
 		if err != nil {
-			return reflect.Value{}, err
+			return err
 		}
 	}
-	return v, nil
+	return nil
 }
 
-func (b Binding) FromFunc(fn func(string) (string, bool)) (reflect.Value, error) {
-	v := reflect.New(b.typ).Elem()
-	p := unsafe.Pointer(v.UnsafeAddr())
+// FromFunc maps the names from the binding through the func. This provides
+// values to be parsed into the provided struct value.
+func (b Binding) FromFunc(fn func(string) (string, bool), v reflect.Value) error {
+	p := unsafe.Pointer(v.Elem().UnsafeAddr())
 	for i, n := range b.names {
 		f := b.fields[i]
 		v, ok := fn(n)
 		if !ok {
-			return reflect.Value{}, ErrNotFound
+			continue
 		}
 		err := f.write(p, v)
 		if err != nil {
-			return reflect.Value{}, err
+			return err
 		}
 	}
-	return v, nil
+	return nil
 }
 
+// Defined will return false if any of the fields are undefined.
 func (b Binding) Defined() bool {
 	for _, f := range b.fields {
 		if !f.m.defined() {

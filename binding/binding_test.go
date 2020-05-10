@@ -10,10 +10,15 @@ type testStruct struct {
 	Int int
 }
 
+func testBinding() Binding {
+	b := Fields().ForStruct(reflect.TypeOf(testStruct{}))
+	return b.Slice([]string{"Str", "Int"})
+}
+
 func TestDecode(t *testing.T) {
-	b := ForStruct(reflect.TypeOf(testStruct{})).Slice([]string{"Str", "Int"})
-	s, _ := b.FromStrings([]string{"1", "2"})
-	v := s.Interface().(testStruct)
+	b := testBinding()
+	var v testStruct
+	b.FromStrings([]string{"1", "2"}, reflect.ValueOf(&v))
 	if v.Int != 2 {
 		t.Fail()
 	}
@@ -23,7 +28,7 @@ func TestDecode(t *testing.T) {
 }
 
 func TestEncode(t *testing.T) {
-	b := ForStruct(reflect.TypeOf(testStruct{})).Slice([]string{"Str", "Int"})
+	b := testBinding()
 	ss, _ := b.ToStrings(reflect.ValueOf(&testStruct{
 		Str: "hello",
 		Int: 10,

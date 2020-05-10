@@ -7,6 +7,9 @@ import (
 	"unsafe"
 )
 
+// ErrUnsupportedType signals that the field type is not currently supported.
+var ErrUnsupportedType = errors.New("unsupported type")
+
 type mechanism interface {
 	read(unsafe.Pointer) (string, error)
 	write(unsafe.Pointer, string) error
@@ -29,8 +32,6 @@ func mechanismFor(t reflect.Type) mechanism {
 }
 
 type unsupported struct{}
-
-var ErrUnsupportedType = errors.New("unsupported type")
 
 func (unsupported) read(unsafe.Pointer) (string, error) {
 	return "", ErrUnsupportedType

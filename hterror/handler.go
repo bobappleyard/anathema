@@ -14,7 +14,7 @@ type defaultHandler struct{}
 
 func (defaultHandler) HandleError(w http.ResponseWriter, r *http.Request, err error) {
 	statusCode := 500
-	if err, ok := err.(interface{ StatusCode() int }); ok {
+	if err, ok := err.(Error); ok {
 		statusCode = err.StatusCode()
 	}
 	w.WriteHeader(statusCode)
