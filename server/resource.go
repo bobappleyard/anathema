@@ -2,9 +2,11 @@ package server
 
 import (
 	"errors"
+	"reflect"
+
+	"github.com/bobappleyard/anathema/a"
 	"github.com/bobappleyard/anathema/binding"
 	"github.com/bobappleyard/anathema/router"
-	"reflect"
 )
 
 var (
@@ -13,7 +15,7 @@ var (
 )
 
 // Resource registers a resource type with the server.
-func (s *Server) Resource(r Resource) Group {
+func (s *Server) Resource(r a.Resource) Group {
 	rt := reflect.TypeOf(r)
 
 	path, err := resourcePath(rt)

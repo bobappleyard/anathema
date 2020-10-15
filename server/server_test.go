@@ -3,12 +3,14 @@ package server_test
 import (
 	"errors"
 	"fmt"
-	"github.com/bobappleyard/anathema/hterror"
-	"github.com/bobappleyard/anathema/server"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+
+	"github.com/bobappleyard/anathema/a"
+	"github.com/bobappleyard/anathema/hterror"
+	"github.com/bobappleyard/anathema/server"
 )
 
 var errNotFound = errors.New("not found")
@@ -39,8 +41,8 @@ type UserRepository interface {
 // segment.
 
 type UserResource struct {
-	server.Resource `path:"/users/{ID}"`
-	ID              int
+	a.Resource `path:"/users/{ID}"`
+	ID         int
 }
 
 // The most straightforward way of setting up a resource is to define an Init
@@ -135,10 +137,10 @@ func runRequest(s *server.Server, method, path, body string) {
 // Wiring everything together is simple.
 
 func Example() {
-	repo := testRepository{map[int]User{}}
+	// repo := testRepository{map[int]User{}}
 
 	s := server.New()
-	s.AddService(func() UserRepository { return repo })
+	// s.AddService(func() UserRepository { return repo })
 	s.Resource(UserResource{})
 
 	// Some test invocations
