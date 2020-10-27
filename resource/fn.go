@@ -3,11 +3,12 @@ package resource
 import (
 	"context"
 	"errors"
-	"github.com/bobappleyard/anathema/di"
-	"github.com/bobappleyard/anathema/hterror"
 	"net/http"
 	"reflect"
 	"strconv"
+
+	"github.com/bobappleyard/anathema/di"
+	"github.com/bobappleyard/anathema/hterror"
 )
 
 var errType = reflect.TypeOf(new(error)).Elem()
@@ -53,7 +54,7 @@ func parseFunctionOutputs(ft reflect.Type) (res, err bool) {
 }
 
 func (h *funcHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	out, err := h.interpretRequest(r)
+	err := h.interpretRequest(r)
 	if err != nil {
 		h.handleError(w, r, err)
 		return
@@ -72,26 +73,29 @@ func (h *funcHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Write(bs)
 }
 
-func (h *funcHandler) interpretRequest(r *http.Request) ([]reflect.Value, error) {
+func (h *funcHandler) interpretRequest(r *http.Request) error {
 	ctx := r.Context()
-	reg := di.GetRegistry(ctx)
+	reg := di.GetScope(ctx)
 	err := h.bind(ctx)
 	if err != nil {
-		return nil, errNotFound
+		return errNotFound
 	}
 	ft := reflect.TypeOf(h.invoke)
 	if h.body {
 		rt := ft.In(1)
 		req := reflect.New(rt)
-		err = reg.Require(ctx, func(e Encoding) error {
-			return e.Decode(r, req.Interface())
-		})
+		var e Encoding
+		err = reg.Require(&e)
 		if err != nil {
-			return nil, errBadRequest
+			return errBadRequest
 		}
-		reg.Insert(rt, req.Elem())
+		err = e.Decode(r, req.Interface())
+		if err != nil {
+			return errBadRequest
+		}
+		reg.AddProvider(di.Instance(req.Elem()))
 	}
-	return reg.Apply(ctx, h.invoke)
+	return reg.Require(h.invoke)
 }
 
 func (h *funcHandler) marshalResponse(r *http.Request, out []reflect.Value) ([]byte, string, error) {

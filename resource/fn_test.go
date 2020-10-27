@@ -2,9 +2,10 @@ package resource
 
 import (
 	"context"
-	"github.com/bobappleyard/anathema/di"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/bobappleyard/anathema/di"
 )
 
 func TestFunc(t *testing.T) {
@@ -24,10 +25,11 @@ func TestFunc(t *testing.T) {
 	})
 	r := httptest.NewRequest("GET", "/", nil)
 	ctx := r.Context()
-	ctx = di.Provide(ctx, func() Resource { return Resource{1} })
-	ctx = di.Provide(ctx, func() Request { return Request{"example body"} })
-	ctx = di.Provide(ctx, func() Encoding { return JSONEncoding })
-	r = r.WithContext(ctx)
+	scope := di.EnterScope(ctx)
+	scope.AddProvider(di.Instance(Resource{1}))
+	scope.AddProvider(di.Instance(Request{"example body"}))
+	scope.AddProvider(di.Instance(JSONEncoding))
+	r = r.WithContext(scope.Install(ctx))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
 	if w.Code != 200 {

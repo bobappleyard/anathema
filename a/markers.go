@@ -7,12 +7,17 @@ type Provider interface {
 	provider()
 }
 
+type Service interface {
+	component.Marker
+	service()
+}
+
 type Resource interface {
 	component.Marker
 	resource()
 }
 
-type Service interface {
+type WebApplication interface {
 	component.Marker
 	service()
 }

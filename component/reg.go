@@ -1,21 +1,21 @@
-package typereg
+package component
 
 import (
 	"reflect"
 	"strings"
 )
 
-var types []reflect.Type
+var registry []reflect.Type
 
 func RegisterType(t reflect.Type) {
-	types = append(types, t)
+	registry = append(registry, t)
 }
 
 type Option func(reflect.Type) bool
 
 func ListTypes(options ...Option) []reflect.Type {
 	var res []reflect.Type
-	for _, t := range types {
+	for _, t := range registry {
 		if testOptions(t, options) {
 			res = append(res, t)
 		}

@@ -2,65 +2,47 @@ package di
 
 import (
 	"errors"
-	"fmt"
 	"reflect"
 )
 
 var ErrInjectionFailed = errors.New("injection failed")
+var ErrInvalidProvider = errors.New("invalid provider")
 
 type Scope struct {
-	next  *Scope
-	rules []Rule
-	cache cache
+	next      *Scope
+	providers []Provider
 }
 
-type Rule interface {
-	Apply(s *Scope, t reflect.Type, results []Furnisher) []Furnisher
+type Provider interface {
+	Apply(t reflect.Type, found []Provider) []Provider
+	Provide(s *Scope, v reflect.Value) error
 }
 
-type Furnisher interface {
-	Furnish(s *Scope, p reflect.Value) error
+func (s *Scope) AddProvider(p Provider) {
+	s.providers = append(s.providers, p)
 }
 
-func (s *Scope) Furnish(ptr reflect.Value) (err error) {
-	t := ptr.Type().Elem()
-	defer addErrorScope(&err, "injecting %v", t)
+func (s *Scope) Require(ptr interface{}) error {
+	return s.requireValue(reflect.ValueOf(ptr))
+}
 
-	furnishers := s.findFurnishers(t)
-	if len(furnishers) != 1 {
+func (s *Scope) requireValue(v reflect.Value) error {
+	t := v.Type()
+	providers := s.findProviders(t)
+
+	if len(providers) != 1 {
 		return ErrInjectionFailed
 	}
 
-	if err := furnishers[0].Furnish(s, ptr); err != nil {
-		return err
-	}
-	s.cacheInjection(t, ptr.Elem())
-
-	return nil
+	return providers[0].Provide(s, v)
 }
 
-func (s *Scope) findFurnishers(t reflect.Type) []Furnisher {
-	if fs, ok := s.cache.get(t); ok {
-		return fs
-	}
-	var res []Furnisher
+func (s *Scope) findProviders(t reflect.Type) []Provider {
+	var providers []Provider
 	for cur := s; cur != nil; cur = cur.next {
-		for _, r := range cur.rules {
-			res = r.Apply(s, t, res)
+		for _, provider := range cur.providers {
+			providers = provider.Apply(t, providers)
 		}
 	}
-	return res
-}
-
-func (s *Scope) cacheInjection(t reflect.Type, value reflect.Value) {
-	s.cache.put(t, []Furnisher{&instanceFurnisher{value}})
-}
-
-func addErrorScope(errp *error, fmtStr string, args ...interface{}) {
-	err := *errp
-	if err == nil {
-		return
-	}
-	args = append(args, err)
-	*errp = fmt.Errorf(fmtStr+": %w", args...)
+	return providers
 }
