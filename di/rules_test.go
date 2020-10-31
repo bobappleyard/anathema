@@ -18,6 +18,14 @@ type testImplementationC struct{}
 func (testImplementationA) method() {}
 func (testImplementationB) method() {}
 
+type testInjectedService struct {
+	intf testInterface
+}
+
+func (s *testInjectedService) Inject(intf testInterface) {
+	s.intf = intf
+}
+
 func assertEqual(t *testing.T, got, expecting interface{}) {
 	t.Helper()
 	if !reflect.DeepEqual(got, expecting) {
@@ -27,28 +35,28 @@ func assertEqual(t *testing.T, got, expecting interface{}) {
 
 func TestInstanceProvider(t *testing.T) {
 	s := &Scope{
-		providers: []Provider{
-			&instanceProvider{reflect.ValueOf(10)},
+		rules: []Rule{
+			&instanceRule{reflect.ValueOf(10)},
 		},
 	}
 	var x int
-	s.requireValue(reflect.ValueOf(&x).Elem())
+	s.RequireValue(reflect.ValueOf(&x).Elem())
 
 	assertEqual(t, x, 10)
 }
 
 func TestFactoryProvider(t *testing.T) {
 	s := &Scope{
-		providers: []Provider{
-			&instanceProvider{reflect.ValueOf(10)},
-			&factoryProvider{reflect.ValueOf(func(x int) string {
+		rules: []Rule{
+			&instanceRule{reflect.ValueOf(10)},
+			&factoryRule{reflect.ValueOf(func(x int) string {
 				return fmt.Sprint(x)
 			})},
 		},
 	}
 
 	var x string
-	s.requireValue(reflect.ValueOf(&x).Elem())
+	s.RequireValue(reflect.ValueOf(&x).Elem())
 
 	assertEqual(t, x, "10")
 }
@@ -60,14 +68,14 @@ func TestFactoryConstructor(t *testing.T) {
 	assertEqual(t, err, nil)
 
 	s := &Scope{
-		providers: []Provider{
-			&instanceProvider{reflect.ValueOf(10)},
+		rules: []Rule{
+			&instanceRule{reflect.ValueOf(10)},
 			f,
 		},
 	}
 
 	var x string
-	s.requireValue(reflect.ValueOf(&x).Elem())
+	s.RequireValue(reflect.ValueOf(&x).Elem())
 
 	assertEqual(t, x, "10")
 }
@@ -80,23 +88,23 @@ func TestFactoryError(t *testing.T) {
 	assertEqual(t, err, nil)
 
 	s := &Scope{
-		providers: []Provider{
-			&instanceProvider{reflect.ValueOf(10)},
+		rules: []Rule{
+			&instanceRule{reflect.ValueOf(10)},
 			f,
 		},
 	}
 
 	var x string
-	err = s.requireValue(reflect.ValueOf(&x).Elem())
+	err = s.RequireValue(reflect.ValueOf(&x).Elem())
 	assertEqual(t, err, e)
 	assertEqual(t, x, "")
 }
 
 func TestPointerProvider(t *testing.T) {
 	s := &Scope{
-		providers: []Provider{
-			&pointerProvider{},
-			&instanceProvider{reflect.ValueOf(10)},
+		rules: []Rule{
+			&pointerRule{},
+			&instanceRule{reflect.ValueOf(10)},
 		},
 	}
 	var x int
@@ -107,11 +115,11 @@ func TestPointerProvider(t *testing.T) {
 
 func TestSliceProvider(t *testing.T) {
 	s := &Scope{
-		providers: []Provider{
-			&instanceProvider{reflect.ValueOf(testImplementationA{})},
-			&instanceProvider{reflect.ValueOf(testImplementationB{})},
-			&pointerProvider{},
-			&sliceProvider{},
+		rules: []Rule{
+			&pointerRule{},
+			&sliceRule{},
+			&instanceRule{reflect.ValueOf(testImplementationB{})},
+			&instanceRule{reflect.ValueOf(testImplementationA{})},
 		},
 	}
 	var x []testInterface
@@ -122,22 +130,42 @@ func TestSliceProvider(t *testing.T) {
 
 func TestStructProvider(t *testing.T) {
 	s := &Scope{
-		providers: []Provider{
-			&instanceProvider{reflect.ValueOf(10)},
-			&pointerProvider{},
-			&sliceProvider{},
-			&structProvider{},
+		rules: []Rule{
+			&pointerRule{},
+			&sliceRule{},
+			&structRule{},
+			&instanceRule{reflect.ValueOf(10)},
 		},
 	}
 
 	var x struct {
-		value  int
-		Value  int
-		PValue *int
+		value   int
+		Value   int
+		PValue  *int
+		PStruct *struct {
+			Value int
+		}
 	}
 	s.Require(&x)
 
 	assertEqual(t, x.value, 0)
 	assertEqual(t, x.Value, 10)
 	assertEqual(t, *x.PValue, 10)
+	assertEqual(t, x.PStruct.Value, 10)
+}
+
+func TestInjectProvider(t *testing.T) {
+	s := &Scope{
+		rules: []Rule{
+			&injectRule{},
+			&pointerRule{},
+			&structRule{},
+			&instanceRule{reflect.ValueOf(testImplementationA{})},
+		},
+	}
+
+	var x testInjectedService
+	s.Require(&x)
+
+	assertEqual(t, x.intf, testImplementationA{})
 }

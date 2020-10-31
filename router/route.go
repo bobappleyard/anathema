@@ -21,6 +21,7 @@ type segment interface {
 	match(string) bool
 	buildNames([]string) []string
 	buildValues([]string, string) []string
+	equal(segment) bool
 }
 
 func ParseRoute(path string) (*Route, error) {
@@ -42,12 +43,32 @@ func (r *Route) WithHandler(h http.Handler) *Route {
 	return &Route{r.segments, h}
 }
 
+func (r *Route) SubRoute(name string) *Route {
+	segments := make([]segment, len(r.segments)+1)
+	copy(segments, r.segments)
+	segments[len(r.segments)] = &fixedSegment{name}
+	return &Route{segments, nil}
+}
+
 func (r *Route) Names() []string {
 	var names []string
 	for _, segment := range r.segments {
 		names = segment.buildNames(names)
 	}
 	return names
+}
+
+func (r *Route) EqualPath(to *Route) bool {
+	if len(r.segments) != len(to.segments) {
+		return false
+	}
+	for i, s := range r.segments {
+		t := to.segments[i]
+		if !s.equal(t) {
+			return false
+		}
+	}
+	return true
 }
 
 func (r *Route) match(path []string) (Match, bool) {
@@ -82,6 +103,11 @@ type anythingSegment struct {
 	name string
 }
 
+func (s *anythingSegment) equal(to segment) bool {
+	_, ok := to.(*anythingSegment)
+	return ok
+}
+
 func (s *anythingSegment) match(p string) bool {
 	return true
 }
@@ -96,6 +122,13 @@ func (s *anythingSegment) buildValues(values []string, seg string) []string {
 
 type fixedSegment struct {
 	value string
+}
+
+func (s *fixedSegment) equal(to segment) bool {
+	if to, ok := to.(*fixedSegment); ok {
+		return s.value == to.value
+	}
+	return false
 }
 
 func (s *fixedSegment) match(p string) bool {

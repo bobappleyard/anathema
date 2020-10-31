@@ -2,7 +2,6 @@ package router
 
 import (
 	"errors"
-	"github.com/bobappleyard/anathema/di"
 	"net/http"
 	"strings"
 )
@@ -16,22 +15,39 @@ var (
 	ErrInvalidMethod = errors.New("invalid method")
 )
 
-func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (rt *Router) AddRoute(method string, r *Route) error {
+	routesPtr, ok := rt.matchMethod(method)
+	if !ok {
+		return ErrInvalidMethod
+	}
+	n := len(r.segments)
+	routes := *routesPtr
+	if n >= len(*routesPtr) {
+		newRoutes := make([][]*Route, n+1)
+		copy(newRoutes, routes)
+		*routesPtr = newRoutes
+		routes = newRoutes
+	}
+	routes[n] = append(routes[n], r)
+	return nil
+}
+
+func (rt *Router) Match(r *http.Request) (Match, error) {
 	segments := splitPath(r.URL.Path)
-	routesp, _ := rt.matchMethod(r.Method)
-	routes := *routesp
+	routesPtr, ok := rt.matchMethod(r.Method)
+	if !ok {
+		return Match{}, ErrInvalidMethod
+	}
+	routes := *routesPtr
 	if len(segments) < len(routes) {
 		for _, route := range routes[len(segments)] {
 			m, ok := route.match(segments)
-			if !ok {
-				continue
+			if ok {
+				return m, nil
 			}
-			r = r.Clone(di.Provide(r.Context(), func() Match { return m }))
-			route.handler.ServeHTTP(w, r)
-			return
 		}
 	}
-	http.NotFound(w, r)
+	return Match{}, ErrNoRoute
 }
 
 func (rt *Router) matchMethod(method string) (*[][]*Route, bool) {
@@ -51,23 +67,6 @@ func (rt *Router) matchMethod(method string) (*[][]*Route, bool) {
 		return nil, false
 	}
 	return routes, true
-}
-
-func (rt *Router) AddRoute(method string, r *Route) error {
-	routesp, ok := rt.matchMethod(method)
-	if !ok {
-		return ErrInvalidMethod
-	}
-	n := len(r.segments)
-	routes := *routesp
-	if n >= len(*routesp) {
-		newRoutes := make([][]*Route, n+1)
-		copy(newRoutes, routes)
-		*routesp = newRoutes
-		routes = newRoutes
-	}
-	routes[n] = append(routes[n], r)
-	return nil
 }
 
 func splitPath(path string) []string {

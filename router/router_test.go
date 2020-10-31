@@ -1,35 +1,21 @@
 package router
 
 import (
-	"context"
-	"github.com/bobappleyard/anathema/di"
 	"net/http"
-	"net/http/httptest"
 	"reflect"
 	"testing"
 )
 
 func TestRouter(t *testing.T) {
-	var foundRoute *Route
-	var matchedSegments []string
-
-	testFn := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		di.Require(r.Context(), func(m Match) {
-			foundRoute = m.Route
-			matchedSegments = m.Values
-		})
-	})
 	r := new(Router)
 	addRoute := func(path string) *Route {
 		rt, _ := ParseRoute(path)
-		rt = rt.WithHandler(testFn)
-		r.AddRoute("GET", rt)
+		_ = r.AddRoute("GET", rt)
 		return rt
 	}
 	user := addRoute("user/{Name}")
 	division := addRoute("/division/{CompanyName}/{DivisionID}")
 	divUsers := addRoute("/division/{CompanyName}/{DivisionID}/users")
-	ctx := context.Background()
 
 	for _, test := range []struct {
 		name   string
@@ -75,15 +61,13 @@ func TestRouter(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			foundRoute, matchedSegments = nil, nil
-			rc := httptest.NewRecorder()
-			rq, _ := http.NewRequestWithContext(ctx, "GET", test.path, nil)
-			r.ServeHTTP(rc, rq)
-			if foundRoute != test.route {
+			rq, _ := http.NewRequest("GET", test.path, nil)
+			m, _ := r.Match(rq)
+			if m.Route != test.route {
 				t.Errorf("wrong route")
 			}
-			if !reflect.DeepEqual(matchedSegments, test.values) {
-				t.Errorf("got %v, expecting %v", matchedSegments, test.values)
+			if !reflect.DeepEqual(m.Values, test.values) {
+				t.Errorf("got %v, expecting %v", m.Values, test.values)
 			}
 		})
 	}

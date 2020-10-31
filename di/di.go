@@ -18,13 +18,18 @@ func GetScope(ctx context.Context) *Scope {
 }
 
 func EnterScope(ctx context.Context) *Scope {
-	return &Scope{next: GetScope(ctx)}
+	next := GetScope(ctx)
+	if next == nil {
+		next = BaseScope()
+	}
+	return &Scope{next: next}
 }
 
 func BaseScope() *Scope {
-	return &Scope{providers: []Provider{
-		&pointerProvider{},
-		&sliceProvider{},
-		&structProvider{},
+	return &Scope{rules: []Rule{
+		&structRule{},
+		&sliceRule{},
+		&pointerRule{},
+		&injectRule{},
 	}}
 }

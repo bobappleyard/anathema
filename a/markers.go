@@ -2,22 +2,22 @@ package a
 
 import "github.com/bobappleyard/anathema/component"
 
-type Provider interface {
+type Service interface {
 	component.Marker
+	service()
+}
+
+type Provider interface {
+	Service
 	provider()
 }
 
-type Service interface {
-	component.Marker
+type WebApplication interface {
+	Provider
 	service()
 }
 
 type Resource interface {
 	component.Marker
 	resource()
-}
-
-type WebApplication interface {
-	component.Marker
-	service()
 }
