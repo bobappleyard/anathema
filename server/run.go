@@ -2,17 +2,17 @@ package server
 
 import (
 	"context"
-	"github.com/bobappleyard/anathema/a"
-	"github.com/bobappleyard/anathema/server/load"
-	"net"
+	"github.com/bobappleyard/anathema/server/a"
+	"github.com/bobappleyard/anathema/server/app"
 	"net/http"
-	"reflect"
 )
 
-func Run() error {
-	ctx := context.Background()
+type WebApplicationContext interface {
+	WebApplicationContext() context.Context
+}
 
-	s, err := New(ctx)
+func Run(application a.WebApplication) error {
+	s, err := New(application)
 	if err != nil {
 		return err
 	}
@@ -20,34 +20,12 @@ func Run() error {
 	return s.ListenAndServe()
 }
 
-func New(ctx context.Context) (*http.Server, error) {
-	scope, err := load.ServerScope(ctx)
+func New(application a.WebApplication) (*http.Server, error) {
+	conf, err := app.LoadConfig(context.Background(), application)
 	if err != nil {
 		return nil, err
 	}
-	ctx = scope.Install(ctx)
-
-	var app a.WebApplication
-	if err := scope.Require(&app); err != nil {
-		return nil, err
-	}
-	tag := getAppTag(app)
-
-	resources := &serverResources{}
-	if err := load.Resources(app, resources); err != nil {
-		return nil, err
-	}
-
 	s := new(http.Server)
-	s.Addr = tag.Get("addr")
-	s.Handler = resources
-	s.BaseContext = func(listener net.Listener) context.Context { return ctx }
-
+	conf.Install(s)
 	return s, nil
-}
-
-func getAppTag(app a.WebApplication) reflect.StructTag {
-	at := reflect.TypeOf(app)
-	f, _ := at.FieldByName("WebApplication")
-	return f.Tag
 }
